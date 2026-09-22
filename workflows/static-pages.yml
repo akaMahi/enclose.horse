@@ -1,0 +1,47 @@
+# Deploy the already-exported build in github/ to GitHub Pages (no rebuild).
+#
+# USE THIS IF: your repo already contains github/index.html, index.js,
+# index.wasm, index.pck (the exported files).
+# USE godot-web.yml INSTEAD IF: your repo has the Godot project but NOT the
+# big build files (they're git-ignored) — that workflow rebuilds them for you.
+#
+# SETUP (do once):
+#   1. Copy this file to `.github/workflows/static-pages.yml` at the REPO ROOT
+#      (GitHub only runs workflows from `.github/workflows/`).
+#   2. In the repo: Settings -> Pages -> Build and deployment -> Source: "GitHub Actions".
+#   3. Push to `main` (or run it manually from the Actions tab).
+
+name: Deploy static build to Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: github
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
