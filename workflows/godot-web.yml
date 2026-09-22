@@ -1,0 +1,71 @@
+# Godot Web export -> GitHub Pages
+#
+# SETUP (do once):
+#   1. Copy this file to `.github/workflows/godot-web.yml` at the REPO ROOT
+#      (GitHub only runs workflows from `.github/workflows/`).
+#   2. In the repo: Settings -> Pages -> Build and deployment -> Source: "GitHub Actions".
+#   3. Push to `main`. The workflow rebuilds the game and publishes it.
+#
+# VERSION PINNING: this project exports with Godot 4.7 (matches the
+# export templates). If you upgrade the project, bump GODOT_VERSION below.
+#
+# PATHS: this workflow assumes the Godot project root (the folder containing
+# `project.godot`) is the repo root. If your project lives in a subfolder
+# (e.g. `game/`), set PROJECT_DIR below to that folder.
+
+name: Deploy Godot Web to Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: 4.7-stable
+  PROJECT_DIR: .
+  EXPORT_DIR: github
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Godot and export templates
+        run: |
+          curl -L -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q godot.zip
+          chmod +x "Godot_v${GODOT_VERSION}_linux.x86_64"
+          mkdir -p ~/.local/share/godot/export_templates/${GODOT_VERSION}
+          curl -L -o templates.tpz "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz"
+          unzip -q templates.tpz -d ~/.local/share/godot/export_templates/${GODOT_VERSION}
+
+      - name: Export Web build
+        run: |
+          ./"Godot_v${GODOT_VERSION}_linux.x86_64" --headless --path "${PROJECT_DIR}" --export-release Web "${PROJECT_DIR}/${EXPORT_DIR}/index.html"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ env.PROJECT_DIR }}/${{ env.EXPORT_DIR }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
